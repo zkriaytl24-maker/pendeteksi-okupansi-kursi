@@ -2,13 +2,12 @@
 // 1. PENGATURAN PROYEK
 // ======================================================================
 const CONFIG = {
+
     // Nama file model AI
     modelPath: './best.onnx',
 
-    // Nama kelas HARUS sama seperti di Roboflow
-    // 0 = kursi kosong
-    // 1 = kursi terisi
-    labels: ["kursi_kosong", "kursi_terisi"],
+    // Nama kelas AI
+    labels: ["kursi kosong", "kursi terisi"],
 
     // Threshold confidence
     threshold: 0.45,
@@ -26,6 +25,7 @@ const overlay = document.getElementById('overlay');
 const ctxOverlay = overlay.getContext('2d');
 
 const processor = document.getElementById('processor');
+
 const ctxProcessor = processor.getContext('2d', {
     willReadFrequently: true
 });
@@ -38,72 +38,90 @@ let session;
 const TARGET_SIZE = 640;
 
 // ======================================================================
-// LOAD MODEL
+// LOAD MODEL AI
 // ======================================================================
+
 initBtn.addEventListener('click', async () => {
 
     initBtn.disabled = true;
-    initBtn.innerText = "MEMUAT MODEL AI...";
+    initBtn.innerText = "MEMUAT AI...";
 
     try {
 
         ort.env.wasm.wasmPaths =
             'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
 
-        session = await ort.InferenceSession.create(
-            CONFIG.modelPath,
-            {
-                executionProviders: ['webgl', 'wasm']
-            }
-        );
+        session =
+            await ort.InferenceSession.create(
+                CONFIG.modelPath,
+                {
+                    executionProviders: ['webgl', 'wasm']
+                }
+            );
 
         startCamera();
 
-    } catch (e) {
+    } catch (error) {
 
-        status.innerText = "GAGAL: MODEL TIDAK DITEMUKAN";
+        console.error(error);
 
-        console.error(e);
+        status.innerText =
+            "❌ MODEL AI GAGAL DIMUAT";
+
+        initBtn.disabled = false;
+        initBtn.innerText = "AKTIFKAN KAMERA";
     }
 });
 
 // ======================================================================
 // START CAMERA
 // ======================================================================
+
 async function startCamera() {
 
-    const stream =
-        await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: 640,
-                height: 480
-            },
-            audio: false
-        });
+    try {
 
-    video.srcObject = stream;
+        const stream =
+            await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: 640,
+                    height: 480
+                },
+                audio: false
+            });
 
-    video.onloadedmetadata = () => {
+        video.srcObject = stream;
 
-        video.play();
+        video.onloadedmetadata = () => {
+
+            video.play();
+
+            status.innerText =
+                "🟢 SISTEM AKTIF";
+
+            initBtn.style.display = "none";
+
+            requestAnimationFrame(processFrame);
+        };
+
+    } catch (error) {
+
+        console.error(error);
 
         status.innerText =
-            "SISTEM AKTIF: DETEKSI KURSI";
-
-        initBtn.style.display = "none";
-
-        requestAnimationFrame(processFrame);
-    };
+            "❌ KAMERA TIDAK BISA DIAKSES";
+    }
 }
 
 // ======================================================================
-// DETEKSI FRAME
+// PROSES FRAME AI
 // ======================================================================
+
 async function processFrame() {
 
     if (!session) return;
 
-    // Resize video
+    // Resize frame video
     ctxProcessor.drawImage(
         video,
         0,
@@ -120,7 +138,7 @@ async function processFrame() {
             TARGET_SIZE
         ).data;
 
-    // Tensor input
+    // Tensor AI
     const float32Data =
         new Float32Array(
             3 * TARGET_SIZE * TARGET_SIZE
@@ -138,7 +156,6 @@ async function processFrame() {
             imageData[i * 4 + 2] / 255.0;
     }
 
-    // Jalankan AI
     const inputTensor =
         new ort.Tensor(
             'float32',
@@ -157,8 +174,8 @@ async function processFrame() {
     // ==================================================================
     // MEMBACA OUTPUT MODEL
     // ==================================================================
-    const numClasses = CONFIG.labels.length;
 
+    const numClasses = CONFIG.labels.length;
     const elements = 8400;
 
     let rawBoxes = [];
@@ -181,7 +198,7 @@ async function processFrame() {
             }
         }
 
-        // Jika confidence lolos threshold
+        // Jika lolos threshold
         if (maxScore > CONFIG.threshold) {
 
             let x = output[i];
@@ -222,8 +239,9 @@ async function processFrame() {
 }
 
 // ======================================================================
-// IOU
+// HITUNG IOU
 // ======================================================================
+
 function calculateIoU(box1, box2) {
 
     const xA = Math.max(box1.x, box2.x);
@@ -254,6 +272,7 @@ function calculateIoU(box1, box2) {
 // ======================================================================
 // NON MAX SUPPRESSION
 // ======================================================================
+
 function nonMaxSuppression(boxes, iouThreshold) {
 
     boxes.sort((a, b) => b.score - a.score);
@@ -277,8 +296,9 @@ function nonMaxSuppression(boxes, iouThreshold) {
 }
 
 // ======================================================================
-// GAMBAR BOX
+// GAMBAR BOX DETEKSI
 // ======================================================================
+
 function drawBoxes(boxes) {
 
     ctxOverlay.clearRect(
@@ -296,13 +316,13 @@ function drawBoxes(boxes) {
         const scaleY =
             overlay.height / TARGET_SIZE;
 
-        // Warna tiap kelas
+        // Default warna
         let color = "#34C759";
 
         // Kursi kosong = biru
         if (
             CONFIG.labels[box.classId]
-            === "kursi_kosong"
+            === "kursi kosong"
         ) {
             color = "#007AFF";
         }
@@ -310,12 +330,12 @@ function drawBoxes(boxes) {
         // Kursi terisi = merah
         if (
             CONFIG.labels[box.classId]
-            === "kursi_terisi"
+            === "kursi terisi"
         ) {
             color = "#FF3B30";
         }
 
-        // Box
+        // BOX
         ctxOverlay.strokeStyle = color;
         ctxOverlay.lineWidth = 3;
 
@@ -331,9 +351,9 @@ function drawBoxes(boxes) {
 
         ctxOverlay.fillRect(
             box.x * scaleX,
-            box.y * scaleY - 25,
-            170,
-            25
+            box.y * scaleY - 28,
+            180,
+            28
         );
 
         // Text label
@@ -343,8 +363,8 @@ function drawBoxes(boxes) {
 
         ctxOverlay.fillText(
             `${CONFIG.labels[box.classId]} ${(box.score * 100).toFixed(0)}%`,
-            box.x * scaleX + 5,
-            box.y * scaleY - 7
+            box.x * scaleX + 8,
+            box.y * scaleY - 8
         );
     });
 }
